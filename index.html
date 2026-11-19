@@ -701,7 +701,7 @@ function renderHome() {
   app.innerHTML = `
   <header class="top"><div><h1>Gene Expression Dice Game</h1>
     <p>Online play: every player joins from their own computer with a game code.</p></div>
-    <div class="actions"><a class="btn small" href="index.html">Play on one screen instead</a></div></header>
+    <div class="actions"><a class="btn small" href="local.html">Play on one screen instead</a></div></header>
   ${LOCAL ? '<p class="notice">Local test mode: games are shared only between tabs of this browser.</p>' : ''}
   ${noticeHTML()}
   ${rulesHTML()}
