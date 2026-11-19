@@ -1,0 +1,958 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gene Expression Online</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=DM+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a lab-bench sidebar (dice, dice board, log) beside a stack of organ cards drawn like the printed cards */
+:root{
+  --bg:#eef2ef; --surface:#ffffff; --surface-2:#f5f7f5; --ink:#1c2420; --muted:#5b6862; --line:#d3dbd6;
+  --accent:#b33a3c; --accent-ink:#ffffff; --track:#dde2df;
+  --on:#0b7a3a; --on-bg:#e2f3e8; --warn:#8a5a00; --warn-bg:#fbefd6; --focus:#2463d6;
+  --f-display:"Baloo 2","Arial Rounded MT Bold",system-ui,sans-serif;
+  --f-body:"Baloo 2",system-ui,sans-serif;
+  --f-mono:"DM Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121715; --surface:#1b221f; --surface-2:#222b27; --ink:#e8eeea; --muted:#9aa9a2; --line:#2f3a35;
+  --accent:#e46a6a; --accent-ink:#1a0c0c; --track:#36413c;
+  --on:#62d48f; --on-bg:#173326; --warn:#f0c060; --warn-bg:#3a2e12; --focus:#7aa7ff; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121715; --surface:#1b221f; --surface-2:#222b27; --ink:#e8eeea; --muted:#9aa9a2; --line:#2f3a35;
+  --accent:#e46a6a; --accent-ink:#1a0c0c; --track:#36413c;
+  --on:#62d48f; --on-bg:#173326; --warn:#f0c060; --warn-bg:#3a2e12; --focus:#7aa7ff; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.4;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 48px}
+.wrap{max-width:1320px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;line-height:1.05}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.btn{border:2px solid var(--ink);background:var(--surface);border-radius:10px;padding:6px 14px;font-weight:700}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn:disabled{opacity:.4}
+.btn.small{padding:2px 10px;font-size:.9rem;border-width:1.5px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.label{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+
+/* header */
+.top{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between}
+.top h1{color:var(--accent);font-size:clamp(1.9rem,4.5vw,2.8rem);font-weight:800}
+.top p{margin:0;color:var(--muted);max-width:60ch}
+.top .actions{display:flex;gap:8px;flex-wrap:wrap}
+.rules{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px 16px}
+.rules summary{font-weight:700;cursor:pointer;padding:6px 0}
+.rules ol{margin:6px 0 12px;padding-left:1.3em;display:grid;gap:4px;max-width:78ch}
+
+/* setup */
+.setup{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px}
+.seat{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center}
+.seat input,.seat select,.field select{border:1.5px solid var(--line);background:var(--surface-2);border-radius:8px;padding:5px 8px;min-width:0}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{border:1.5px solid var(--line);background:var(--surface-2);border-radius:8px;padding:3px 14px;font-weight:700}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.field{display:flex;flex-direction:column;gap:6px}
+.swatch{width:14px;height:14px;border-radius:50%;background:var(--accent)}
+
+/* game layout */
+.game{display:grid;grid-template-columns:minmax(300px,360px) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:920px){.game{grid-template-columns:minmax(0,1fr)}}
+.panel{display:flex;flex-direction:column;gap:14px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+@media (max-width:920px){.panel{position:static}}
+.turn h2{font-size:1.6rem;font-weight:800}
+.turn h2 span{color:var(--accent)}
+.hint{margin:0;color:var(--muted)}
+.dice-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.dice{display:flex;gap:10px}
+.die{width:54px;height:54px;border:2.5px solid var(--ink);border-radius:11px;background:var(--surface);display:grid;
+  grid-template:repeat(3,1fr)/repeat(3,1fr);padding:6px}
+.die i{width:9px;height:9px;border-radius:50%;background:var(--ink);place-self:center;visibility:hidden}
+.die i.p{visibility:visible}
+.die.six i.p{background:var(--accent)}
+.sum{font-family:var(--f-mono);font-size:1.5rem;font-weight:500}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+
+.prompt{border:2px solid var(--accent);background:var(--surface);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.prompt p{margin:0;font-weight:600}
+
+.board{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.cell{border:1.5px solid var(--line);border-radius:9px;background:var(--surface-2);padding:4px 2px 6px;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:86px}
+.cell.hit{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
+.cell b{font-family:var(--f-mono);font-size:1.15rem;font-weight:500}
+.cell.hot b{color:var(--accent)}
+.pips{display:flex;gap:2px;height:6px}
+.pips i{width:4px;height:4px;border-radius:50%;background:var(--muted)}
+.cell .toks{display:flex;flex-wrap:wrap;justify-content:center;gap:2px;margin-top:2px}
+.board-note{font-size:.8rem;color:var(--muted);margin:0}
+
+.log{max-height:240px;overflow:auto;display:flex;flex-direction:column;gap:4px;font-size:.92rem}
+.log div{padding-bottom:4px;border-bottom:1px dashed var(--line)}
+.log div:first-child{font-weight:600}
+
+/* organ cards */
+.cards{display:flex;flex-direction:column;gap:18px;min-width:0}
+.organ{background:var(--surface);border:1.5px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.organ.active{border:2.5px solid var(--accent);box-shadow:0 6px 24px -12px var(--accent)}
+.organ-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px}
+.organ-head h2{color:var(--accent);font-size:2.2rem;font-weight:800}
+.organ-head .who{font-weight:700;font-size:1.1rem}
+.organ-head .score{margin-left:auto;font-family:var(--f-mono);font-size:.95rem;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:2px 12px}
+.strip{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
+.collects{display:flex;gap:8px;align-items:center}
+.pool{display:flex;gap:6px;flex-wrap:wrap}
+.chip{display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:8px;padding:2px 8px 2px 4px;background:var(--surface-2);font-family:var(--f-mono);font-size:.95rem}
+.chip.zero{opacity:.35}
+
+.genes{display:flex;flex-direction:column;gap:6px}
+.gene-head,.gene{display:grid;grid-template-columns:76px minmax(0,1fr) 70px minmax(0,1.15fr);gap:10px;align-items:center}
+.gene-head{padding:0 8px}
+.gene{padding:6px 8px;border-radius:12px;border:1.5px solid transparent}
+.gene.on{background:var(--on-bg);border-color:var(--on)}
+.chrom{border:2px solid transparent;background:none;padding:0;border-radius:10px;display:flex;flex-direction:column;align-items:center;font-size:.7rem;font-weight:700;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.chrom.pick{border-color:var(--accent);background:var(--surface);animation:pulse 1.1s ease-in-out infinite}
+.track{position:relative;display:flex;gap:10px;align-items:center;padding:4px 6px}
+.track::before{content:"";position:absolute;left:0;right:-10px;top:50%;height:12px;margin-top:-6px;background:var(--track);border-radius:2px}
+.slot{position:relative;width:52px;height:28px;border:2px dashed var(--c);background:color-mix(in srgb,var(--c) 16%,var(--surface));border-radius:3px;display:grid;place-items:center;padding:0}
+.slot.bound{background:var(--c);border:1.5px solid rgba(0,0,0,.35)}
+.slot.can,.slot.pick{animation:pulse 1.1s ease-in-out infinite;border-style:solid}
+.slot.pick{outline:3px solid var(--accent);outline-offset:1px}
+.slot:disabled{cursor:default}
+.helix{display:block}
+.product{display:flex;flex-direction:column;gap:2px;min-width:0}
+.product .ptitle{display:flex;align-items:center;gap:6px;font-weight:800;font-size:1.02rem}
+.product .rule{font-size:.86rem;color:var(--muted);line-height:1.2}
+.pill{align-self:flex-start;font-size:.72rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:999px;padding:1px 9px;margin-top:2px}
+.pill.on{background:var(--on);color:var(--surface)}
+.pill.closed{background:var(--warn-bg);color:var(--warn)}
+.pill.wait{background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+.badge{font-family:var(--f-mono);font-size:.72rem;font-weight:500;border:1.5px solid currentColor;border-radius:5px;padding:0 4px}
+
+@media (max-width:640px){
+  .gene-head{display:none}
+  .gene,.gene-head{grid-template-columns:56px minmax(0,1fr);grid-template-areas:"c t" "c p"}
+  .gene .chrom{grid-area:c}.gene .track{grid-area:t}.gene .product{grid-area:p}.gene .helix{display:none}
+  .slot{width:44px}
+  .organ-head h2{font-size:1.8rem}
+}
+
+.hand{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
+.acard{border:1.5px solid var(--ink);border-radius:10px;background:var(--surface-2);padding:8px 10px;text-align:left;width:190px;display:flex;flex-direction:column;gap:2px}
+.acard b{font-family:var(--f-display);font-size:1rem}
+.acard span{font-size:.84rem;color:var(--muted);line-height:1.2}
+.acard:disabled{opacity:.55}
+.acard.back{border-style:dashed;justify-content:center;color:var(--muted);width:auto}
+
+.overlay{position:fixed;inset:0;background:color-mix(in srgb,var(--bg) 70%,transparent);display:grid;place-items:center;padding:20px;z-index:20}
+.overlay .box{max-width:520px;border:2.5px solid var(--accent);padding:24px;gap:14px}
+.overlay h2{font-size:2rem;color:var(--accent)}
+.overlay p{margin:0}
+
+@keyframes pulse{50%{transform:scale(1.06)}}
+@media (prefers-reduced-motion: reduce){.slot.can,.slot.pick,.chrom.pick{animation:none}}
+</style>
+
+<style>
+/* online-only additions */
+.text{border:1.5px solid var(--line);background:var(--surface-2);border-radius:8px;padding:6px 10px;font-size:1.05rem;min-width:0;max-width:100%}
+.text.code{font-family:var(--f-mono);text-transform:uppercase;letter-spacing:.25em;font-size:1.4rem;width:8ch}
+.bigcode{font-size:3rem;letter-spacing:.2em;color:var(--accent);line-height:1}
+.linkline{word-break:break-all}
+.small{font-size:.88rem;margin:0}
+.notice{margin:0;padding:10px 14px;border-radius:10px;background:var(--warn-bg);color:var(--warn);font-weight:600}
+a.btn{text-decoration:none;color:inherit;display:inline-block}
+.top .actions{align-items:center}
+.codechip{font-weight:500;padding:2px 10px;border:1.5px solid var(--accent);border-radius:999px;color:var(--accent)}
+.pchip{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-weight:600;font-size:.9rem}
+.pchip.now{border:2px solid var(--accent)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--line);margin-right:5px;vertical-align:middle}
+.dot.on{background:var(--on)}
+.turn.yours{border:2px solid var(--accent)}
+.organ.mine:not(.active){border-color:var(--ink)}
+.dice.shake .die{animation:shake .45s ease-out}
+@keyframes shake{0%{transform:rotate(0)}25%{transform:rotate(-14deg) scale(1.08)}60%{transform:rotate(10deg)}100%{transform:rotate(0)}}
+@media (prefers-reduced-motion: reduce){.dice.shake .die{animation:none}}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script>
+// ---------- Game data (edit here to change the cards) ----------
+const TF = {
+  red:    {hex:'#f01c1c', name:'Red'},
+  pink:   {hex:'#f53bc8', name:'Pink'},
+  yellow: {hex:'#f8b800', name:'Yellow'},
+  green:  {hex:'#0c9a3e', name:'Green'},
+  cyan:   {hex:'#18dfe8', name:'Cyan'},
+};
+// Gene builders. `when` is 'even', 'odd', 'doubles', or {faces:[...]} = "if there's a ..." on either die.
+const has = (...faces) => ({faces});
+const whenText = w => w==='even' ? 'on even rolls' : w==='odd' ? 'on odd rolls' : w==='doubles' ? 'on doubles' : `if there's a ${w.faces.join(' or ')}`;
+const tf  = (title,enh,color,when) => ({kind:'tf', title, enh, color, when, rule:`Collect ${whenText(when)}`});
+const lig = (enh,when) => ({kind:'ligand', title:'Ligand', enh, when,
+  rule:`Signals neighbors ${whenText(when)}: you draw an action card. Lets you play action cards on neighbors.`});
+const rec = (enh,color) => ({kind:'receptor', title:'Receptor', enh, color, rule:"Collect when a neighbor's Ligand signals"});
+const hat = (enh,when) => ({kind:'hat', title:'HAT', enh, when, rule:`Change chromatin state ${whenText(when)}`});
+
+// Each organ card: the colors it can collect from the dice board, its own six genes
+// (top to bottom), and which of them start with open chromatin.
+// Each organ collects 3 colors from the board and makes a 4th with its first gene.
+// The 5th color comes only from its Receptor, when a neighbor's Ligand signals,
+// and three of its genes (including HAT) need that color.
+// Organs trade off how much chromatin starts closed against how often their HAT fires.
+const ORGANS = {
+  Eye: {cell:'Photoreceptor cell', collects:['red','pink','yellow'], open:[true,false,false,true,true,true], genes:[
+    tf('PAX6', ['red','pink','yellow'], 'cyan', 'even'),
+    tf('CRX',  ['yellow','green','cyan'], 'red', has(2,3)),
+    tf('OTX2', ['green','cyan','pink'], 'yellow', 'odd'),
+    lig(['pink','cyan','red'], 'odd'),
+    rec(['pink','cyan','yellow'], 'green'),
+    hat(['yellow','green','pink'], has(5,6))]},
+  Kidney: {cell:'Kidney tubule cell', collects:['green','cyan','yellow'], open:[true,true,false,true,true,true], genes:[
+    tf('PAX2', ['green','cyan','yellow'], 'red', 'odd'),
+    tf('WT1',  ['red','pink','cyan'], 'green', 'even'),
+    tf('LHX1', ['pink','yellow','red'], 'cyan', has(1)),
+    lig(['cyan','yellow','red'], 'even'),
+    rec(['green','red','yellow'], 'pink'),
+    hat(['pink','red','yellow'], 'doubles')]},
+  Liver: {cell:'Hepatocyte', collects:['red','pink','green'], open:[true,false,false,true,true,true], genes:[
+    tf('HNF4A', ['pink','green','red'], 'yellow', 'even'),
+    tf('FOXA2', ['yellow','cyan','pink'], 'green', has(1,2,3)),
+    tf('HNF1A', ['cyan','green','yellow'], 'pink', 'odd'),
+    lig(['green','yellow','red'], has(3,4)),
+    rec(['red','yellow','pink'], 'cyan'),
+    hat(['pink','cyan','green'], has(1,6))]},
+  Heart: {cell:'Cardiomyocyte', collects:['pink','yellow','cyan'], open:[true,false,false,true,true,true], genes:[
+    tf('GATA4',  ['yellow','cyan','pink'], 'green', 'odd'),
+    tf('NKX2-5', ['green','red','yellow'], 'pink', has(3,4,5)),
+    tf('TBX5',   ['red','cyan','green'], 'yellow', 'even'),
+    lig(['pink','green','cyan'], has(1,2)),
+    rec(['yellow','green','pink'], 'red'),
+    hat(['cyan','red','pink'], has(4,5))]},
+};
+const genesOf = p => ORGANS[p.organ].genes;
+const kindOn = (p,kind) => genesOf(p).some((g,i)=>g.kind===kind && expressed(p,i));
+const CARDS = {
+  acetyl:    {name:'Histone acetylation', text:'Open the chromatin on one gene.', count:4},
+  hdac:      {name:'HDAC',                text:'Close the chromatin on one gene.', count:3},
+  growth:    {name:'Growth factor',       text:'Cell collects 1 random factor from the colors it collects.', count:5},
+  repressor: {name:'Repressor',           text:'Knock one bound factor off an enhancer.', count:3},
+};
+const HAND_MAX = 3;
+const WAYS = {2:1,3:2,4:3,5:4,6:5,7:6,8:5,9:4,10:3,11:2,12:1};
+
+// ---------- Helpers ----------
+const rnd = n => Math.floor(Math.random()*n);
+const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]]} return a; };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function shape(c, s=20){
+  const f = TF[c].hex, st = 'stroke="rgba(0,0,0,.45)" stroke-width="1"';
+  const body = {
+    red:    `<polygon points="12,2 22.5,21.5 1.5,21.5" fill="${f}" ${st}/>`,
+    pink:   `<rect x="8" y="1" width="8" height="22" fill="${f}" ${st}/>`,
+    yellow: `<polygon points="12,1.5 22.5,9.2 18.5,21.8 5.5,21.8 1.5,9.2" fill="${f}" ${st}/>`,
+    green:  `<rect x="1" y="8" width="22" height="8" fill="${f}" ${st}/>`,
+    cyan:   `<ellipse cx="12" cy="12" rx="7.5" ry="10.5" fill="${f}" ${st}/>`,
+  }[c];
+  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-label="${TF[c].name} factor" role="img">${body}</svg>`;
+}
+function chromSVG(open){
+  // Closed: nucleosomes packed tight. Open: beads spread along loose DNA.
+  if(!open) return `<svg width="54" height="44" viewBox="0 0 54 44" aria-hidden="true">
+    <circle cx="20" cy="16" r="10" fill="#f2a54e"/><circle cx="34" cy="16" r="10" fill="#e9738c"/>
+    <circle cx="20" cy="29" r="10" fill="#e9738c"/><circle cx="34" cy="29" r="10" fill="#f2a54e"/>
+    <rect x="11" y="19" width="32" height="7" rx="3" fill="#7cb342"/>
+    <path d="M6 40 C14 34 10 6 27 8 S44 30 48 4" fill="none" stroke="#2f6fb8" stroke-width="2.4"/></svg>`;
+  return `<svg width="54" height="44" viewBox="0 0 54 44" aria-hidden="true">
+    <path d="M2 30 C10 10 16 40 27 22 S42 6 52 20" fill="none" stroke="#2f6fb8" stroke-width="2.4"/>
+    <circle cx="8" cy="22" r="6" fill="#f2a54e"/><circle cx="27" cy="22" r="6" fill="#e9738c"/><circle cx="46" cy="14" r="6" fill="#f2a54e"/></svg>`;
+}
+const HELIX = (() => {
+  let a='', b='', rungs='';
+  for(let x=0;x<=64;x+=2){const y1=20+13*Math.sin(x/64*Math.PI*3), y2=20-13*Math.sin(x/64*Math.PI*3);
+    a+=(x?'L':'M')+x+' '+y1.toFixed(1); b+=(x?'L':'M')+x+' '+y2.toFixed(1);
+    if(x%6===0&&x>0&&x<64){const col=['#d33','#2a5fd0','#1f8f4a'][x/6%3];rungs+=`<line x1="${x}" x2="${x}" y1="${y1.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${col}" stroke-width="1.6"/>`}}
+  return `<svg class="helix" width="70" height="40" viewBox="0 0 64 40" aria-hidden="true">${rungs}<path d="${a}" fill="none" stroke="#b9c2be" stroke-width="2.6"/><path d="${b}" fill="none" stroke="#9aa5a0" stroke-width="2.6"/></svg>`;
+})();
+function dieHTML(n, id){
+  const on = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]}[n] || [];
+  return `<div class="die ${n===6?'six':''}" ${id?`id="${id}"`:''} role="img" aria-label="${n||'blank'}">${[...Array(9)].map((_,i)=>`<i class="${on.includes(i)?'p':''}"></i>`).join('')}</div>`;
+}
+
+// ---------- State ----------
+let S = null;
+let setup = {n:2, perColor:3, target:5, players:[
+  {name:'Player 1',organ:'Eye'},{name:'Player 2',organ:'Kidney'},{name:'Player 3',organ:'Liver'},{name:'Player 4',organ:'Heart'}]};
+let rolling = false;
+
+const cur = () => S.players[S.turn];
+const expressed = (p,g) => p.open[g] && p.bound[g].every(Boolean);
+const countOn = p => genesOf(p).filter((_,g)=>expressed(p,g)).length;
+function log(html){ S.log.unshift(html); S.log.length = Math.min(S.log.length, 60); }
+const who = p => `<b>${esc(p.name)}</b>`;
+
+function dealBoard(colors, per){
+  const b = {}; for(let s=2;s<=12;s++) b[s]=[];
+  colors.forEach(c => { for(let k=0;k<per;k++){ let s; do { s = 2+rnd(11); } while(b[s].length>=3); b[s].push(c); } });
+  return b;
+}
+function newDeck(){ const d=[]; for(const [k,v] of Object.entries(CARDS)) for(let i=0;i<v.count;i++) d.push(k); return shuffle(d); }
+
+function startGame(){
+  const players = setup.players.slice(0,setup.n).map((p,i)=>({
+    name: p.name.trim() || `Player ${i+1}`, organ: p.organ,
+    pool: Object.fromEntries(Object.keys(TF).map(c=>[c,0])),
+    bound: ORGANS[p.organ].genes.map(()=>[false,false,false]),
+    open: [...ORGANS[p.organ].open], hand: [] }));
+  const colors = [...new Set(players.flatMap(p=>ORGANS[p.organ].collects))];
+  S = {players, colors, board: dealBoard(colors, setup.perColor), target: setup.target, turn:0, phase:'roll',
+       dice:null, played:false, pending:null, queue:[], deck:newDeck(), discard:[], log:[], rolls:0, winner:null};
+  log(`Dealt ${colors.length*setup.perColor} transcription-factor tokens onto the dice board at random.`);
+  startTurn();
+}
+function draw(p){
+  if(p.hand.length>=HAND_MAX) return;
+  if(!S.deck.length){ S.deck = shuffle(S.discard); S.discard = []; }
+  if(S.deck.length) p.hand.push(S.deck.pop());
+}
+function startTurn(){
+  const p = cur(); S.phase='roll'; S.played=false; S.pending=null;
+  draw(p);
+  log(`${who(p)}'s turn (${p.organ}).`);
+  render();
+}
+function cond(when){
+  const [a,b] = S.dice;
+  if(when==='even') return (a+b)%2===0;
+  if(when==='odd') return (a+b)%2===1;
+  if(when==='doubles') return a===b;
+  return S.dice.some(d=>when.faces.includes(d));
+}
+
+function roll(){
+  if(S.phase!=='roll' || rolling) return;
+  rolling = true;
+  const final = [1+rnd(6), 1+rnd(6)];
+  const finish = () => { S.dice = final; rolling = false; resolve(); render(); };
+  if(reduceMotion) return finish();
+  let k = 0;
+  const t = setInterval(() => {
+    const el = document.getElementById('dice');
+    if(el) el.innerHTML = dieHTML(1+rnd(6)) + dieHTML(1+rnd(6));
+    if(++k>=9){ clearInterval(t); finish(); }
+  }, 60);
+}
+function resolve(){
+  const [a,b] = S.dice, sum = a+b; S.rolls++;
+  const tags = [sum%2 ? 'odd' : 'even'];
+  if(a===b) tags.push('doubles');
+  log(`${who(cur())} rolled ${a} + ${b} = <b>${sum}</b> <span class="muted">(${tags.join(', ')})</span>`);
+  S.players.forEach(p => {
+    const got = [];
+    S.board[sum].forEach(c => { if(ORGANS[p.organ].collects.includes(c)){ p.pool[c]++; got.push(c); } });
+    genesOf(p).forEach((g,gi) => { if(g.kind==='tf' && expressed(p,gi) && cond(g.when)){ p.pool[g.color]++; got.push(g.color); } });
+    if(got.length) log(`${who(p)} collects ${got.map(c=>shape(c,14)).join(' ')}`);
+  });
+  // Ligand signaling: the sender draws a card; each neighbor with its Receptor on collects that receptor's color
+  S.players.forEach((p,i) => {
+    if(!genesOf(p).some((g,gi)=>g.kind==='ligand' && expressed(p,gi) && cond(g.when))) return;
+    draw(p);
+    // with one player the signal comes back to the sender's own Receptor (autocrine)
+    const heard = (S.players.length===1 ? [i] : neighbors(i)).filter(j => {
+      const q = S.players[j], r = genesOf(q).findIndex(g=>g.kind==='receptor');
+      if(r<0 || !expressed(q,r)) return false;
+      q.pool[genesOf(q)[r].color]++; return true;
+    });
+    log(`${who(p)}'s Ligand signals and draws an action card.` +
+      (heard.length ? ` Received by ${heard.map(j=>`${who(S.players[j])} ${shape(genesOf(S.players[j])[genesOf(S.players[j]).findIndex(g=>g.kind==='receptor')].color,14)}`).join(', ')}.` : ''));
+  });
+  // HAT prompts start with the roller so ties don't always favor the first seat
+  S.queue = S.players.map((_,i)=>(S.turn+i)%S.players.length)
+    .filter(i=>{ const p = S.players[i]; return genesOf(p).some((g,gi)=>g.kind==='hat' && expressed(p,gi) && cond(g.when)); })
+    .map(i=>({type:'hat',p:i}));
+  S.phase = 'act';
+  S.pending = S.queue.shift() || null;
+}
+function nextPending(){ S.pending = S.queue.shift() || null; }
+
+function announce(p,g,wasOn){
+  if(!wasOn && expressed(p,g)) log(`${who(p)}'s ${p.organ} cell now expresses <b>${genesOf(p)[g].title}</b>.`);
+  if(wasOn && !expressed(p,g)) log(`${who(p)}'s <b>${genesOf(p)[g].title}</b> gene switched off.`);
+  checkWin();
+}
+function checkWin(){
+  if(S.winner!==null) return;
+  const i = S.players.findIndex(p => countOn(p) >= S.target);
+  if(i>=0){ S.winner=i; S.phase='over'; S.pending=null; S.queue=[]; log(`${who(S.players[i])} wins!`); }
+}
+function bind(pi,g,s){
+  if(pi!==S.turn || S.phase!=='act' || S.pending) return false;
+  const p = S.players[pi], c = genesOf(p)[g].enh[s];
+  if(p.bound[g][s] || p.pool[c]<1) return false;
+  const was = expressed(p,g);
+  p.pool[c]--; p.bound[g][s] = true;
+  if(p.bound[g].every(Boolean) && !p.open[g]) log(`${who(p)} bound all factors for <b>${genesOf(p)[g].title}</b>, but its chromatin is closed.`);
+  announce(p,g,was);
+  return true;
+}
+function autoBind(){
+  const p = cur(); let n = 0;
+  genesOf(p).forEach((g,gi)=>g.enh.forEach((c,s)=>{ if(S.phase==='act' && bind(S.turn,gi,s)) n++; }));
+  if(!n) log(`${who(p)} has no factors that fit an empty enhancer.`);
+}
+function setChrom(pi,g,open,by){
+  const p = S.players[pi], was = expressed(p,g);
+  p.open[g] = open;
+  log(`${by} ${open?'opens':'closes'} chromatin on ${who(p)}'s <b>${genesOf(p)[g].title}</b> gene.`);
+  announce(p,g,was);
+}
+
+// action cards
+function neighbors(i){ const n=S.players.length; return [...new Set([(i+n-1)%n,(i+1)%n])].filter(j=>j!==i); }
+function targets(i){ return [i, ...(kindOn(S.players[i],'ligand') ? neighbors(i) : [])]; }
+function validTarget(card, ti){
+  const p = S.players[ti];
+  if(card==='acetyl') return p.open.some(o=>!o);
+  if(card==='hdac') return p.open.some(o=>o);
+  if(card==='repressor') return p.bound.some(b=>b.some(Boolean));
+  return true;
+}
+function playCard(idx){
+  if(S.phase!=='act' || S.pending || S.played) return;
+  const card = cur().hand[idx];
+  const opts = targets(S.turn).filter(t=>validTarget(card,t));
+  if(!opts.length){ log(`No cell you can reach has a valid target for <b>${CARDS[card].name}</b>.`); return; }
+  S.pending = {type:'card', idx, card, step:'target'};
+  if(opts.length===1) chooseTarget(opts[0]);
+}
+function chooseTarget(t){
+  const pd = S.pending; pd.target = t;
+  if(pd.card==='growth'){
+    const p = S.players[t], cols = ORGANS[p.organ].collects, got = [cols[rnd(cols.length)]];
+    got.forEach(c=>p.pool[c]++);
+    log(`${who(cur())} plays <b>Growth factor</b> on ${who(p)}: +${got.map(c=>shape(c,14)).join(' ')}`);
+    finishCard();
+  } else pd.step = 'gene';
+}
+function finishCard(){
+  const pd = S.pending, p = cur();
+  p.hand.splice(pd.idx,1); S.discard.push(pd.card); S.played = true; S.pending = null;
+}
+
+// clicks on the card
+function chromClick(pi,g){
+  const pd = S.pending; if(!pd) return;
+  const p = S.players[pi];
+  if(pd.type==='hat' && pd.p===pi){ setChrom(pi,g,!p.open[g],`${who(p)}'s HAT`); if(S.phase!=='over') nextPending(); return; }
+  if(pd.type==='card' && pd.step==='gene' && pd.target===pi){
+    if(pd.card==='acetyl' && !p.open[g]){ setChrom(pi,g,true,`${who(cur())}'s histone acetylation`); finishCard(); }
+    else if(pd.card==='hdac' && p.open[g]){ setChrom(pi,g,false,`${who(cur())}'s HDAC`); finishCard(); }
+  }
+}
+function slotClick(pi,g,s){
+  const pd = S.pending, p = S.players[pi];
+  if(pd && pd.type==='card' && pd.card==='repressor' && pd.step==='gene' && pd.target===pi && p.bound[g][s]){
+    const was = expressed(p,g); p.bound[g][s] = false;
+    log(`${who(cur())}'s repressor knocks ${shape(genesOf(p)[g].enh[s],14)} off ${who(p)}'s <b>${genesOf(p)[g].title}</b> enhancer.`);
+    announce(p,g,was); finishCard(); return;
+  }
+  bind(pi,g,s);
+}
+function endTurn(){
+  if(S.phase!=='act' || S.pending) return;
+  S.turn = (S.turn+1) % S.players.length;
+  startTurn();
+}
+
+// ================= Online play =================
+// Everything above this line is the hot-seat game's rules code, copied unchanged by build-online.ps1.
+// The game state S lives in Firebase at games/<CODE>/state. Every move runs as a transaction:
+// the mover's browser applies the same rule functions to the latest state and writes it back,
+// and every browser re-renders when the state changes.
+
+const params = new URLSearchParams(location.search);
+const LOCAL = params.has('local'); // test mode: tabs of one browser share games through localStorage
+const store = (() => { try { const s = LOCAL ? sessionStorage : localStorage; s.setItem('gx-t', '1'); return s; } catch (_) { return null; } })();
+const remember = (k, v) => { try { if (store) v == null ? store.removeItem(k) : store.setItem(k, v); } catch (_) {} };
+const recall = k => { try { return store ? store.getItem(k) : null; } catch (_) { return null; } };
+
+const app = document.getElementById('app');
+let net = null, uid = null, code = null, game = null, unwatch = null;
+let mySeat = -1, quiet = false, dismissed = false, lastRolls = null, view = 'home', notice = '', rulesOpen = false;
+let myName = recall('gx-name') || '';
+
+// ---------- Firebase backend ----------
+const FirebaseNet = {
+  async init() {
+    firebase.initializeApp(window.FIREBASE_CONFIG);
+    this.db = firebase.database();
+    const cred = await firebase.auth().signInAnonymously();
+    return cred.user.uid;
+  },
+  ref(p) { return this.db.ref(p); },
+  get(p) { return this.ref(p).once('value').then(s => s.val()); },
+  set(p, v) { return this.ref(p).set(v); },
+  transact(p, fn) { return this.ref(p).transaction(fn); },
+  watch(c, cb) { const r = this.ref('games/' + c), h = s => cb(s.val()); r.on('value', h); return () => r.off('value', h); },
+  presence(c, id) {
+    const r = this.ref(`games/${c}/presence/${id}`);
+    this.ref('.info/connected').on('value', s => { if (s.val()) { r.onDisconnect().remove(); r.set(true); } });
+  },
+  // Remove games older than a day, so no student names are kept.
+  async cleanup() {
+    const s = await this.ref('games').orderByChild('createdAt').endAt(Date.now() - 864e5).limitToFirst(50).once('value');
+    const up = {}; s.forEach(c => { up[c.key] = null; });
+    if (Object.keys(up).length) await this.ref('games').update(up);
+  },
+};
+
+// ---------- Local test backend (same interface, no server) ----------
+// Mimics Firebase dropping nulls and empty arrays, so the test exercises revive().
+function clean(v) {
+  if (v === null || v === undefined) return undefined;
+  if (Array.isArray(v)) { if (!v.length) return undefined; return v.map(x => { const c = clean(x); return c === undefined ? null : c; }); }
+  if (typeof v === 'object') {
+    const o = {}; for (const [k, x] of Object.entries(v)) { const c = clean(x); if (c !== undefined) o[k] = c; }
+    return Object.keys(o).length ? o : undefined;
+  }
+  return v;
+}
+function getPath(db, p) { return p.split('/').reduce((o, k) => (o == null ? undefined : o[k]), db); }
+function setPath(db, p, v) {
+  const ks = p.split('/'), last = ks.pop(); let o = db;
+  for (const k of ks) { if (typeof o[k] !== 'object' || o[k] === null) o[k] = {}; o = o[k]; }
+  const c = clean(v); if (c === undefined) delete o[last]; else o[last] = c;
+}
+const LocalNet = {
+  key: 'gx-local-db', subs: [],
+  load() { try { return JSON.parse(localStorage.getItem(this.key) || '{}'); } catch (_) { return {}; } },
+  save(db) { localStorage.setItem(this.key, JSON.stringify(db)); this.fire(); },
+  fire() { const db = this.load(); this.subs.forEach(s => s.cb(JSON.parse(JSON.stringify(getPath(db, 'games/' + s.code) ?? null)))); },
+  async init() {
+    addEventListener('storage', e => { if (e.key === this.key) this.fire(); });
+    let id = recall('gx-uid'); if (!id) { id = 'u' + Math.random().toString(36).slice(2, 10); remember('gx-uid', id); }
+    return id;
+  },
+  get(p) { return Promise.resolve(JSON.parse(JSON.stringify(getPath(this.load(), p) ?? null))); },
+  set(p, v) { const db = this.load(); setPath(db, p, v); this.save(db); return Promise.resolve(); },
+  transact(p, fn) {
+    const db = this.load(), cur = getPath(db, p);
+    const next = fn(cur === undefined ? null : JSON.parse(JSON.stringify(cur)));
+    if (next === undefined) return Promise.resolve({ committed: false });
+    setPath(db, p, next); this.save(db); return Promise.resolve({ committed: true });
+  },
+  watch(c, cb) { const s = { code: c, cb }; this.subs.push(s); setTimeout(() => this.fire()); return () => { this.subs = this.subs.filter(x => x !== s); }; },
+  presence(c, id) { this.set(`games/${c}/presence/${id}`, true); addEventListener('beforeunload', () => this.set(`games/${c}/presence/${id}`, null)); },
+  cleanup() { return Promise.resolve(); },
+};
+
+// Firebase drops empty arrays and nulls; put them back before the rules code touches the state.
+function revive(s) {
+  if (!s) return s;
+  s.players = (s.players || []).map(p => {
+    p.hand = p.hand || [];
+    p.pool = Object.assign(Object.fromEntries(Object.keys(TF).map(c => [c, 0])), p.pool || {});
+    return p;
+  });
+  const b = {}; for (let k = 2; k <= 12; k++) b[k] = (s.board && s.board[k]) || []; s.board = b;
+  ['queue', 'log', 'deck', 'discard', 'colors'].forEach(k => { s[k] = s[k] || []; });
+  if (s.pending === undefined) s.pending = null;
+  if (s.winner === undefined) s.winner = null;
+  if (s.dice === undefined) s.dice = null;
+  s.played = !!s.played;
+  return s;
+}
+
+// ---------- Who may do what ----------
+const isHost = () => !!game && game.host === uid;
+const myTurn = () => !!S && S.phase !== 'over' && mySeat === S.turn;
+const isOnline = i => !!(game && game.presence && S && S.players[i] && game.presence[S.players[i].uid]);
+const lobbyList = () => Object.entries((game && game.lobby) || {}).sort((a, b) => a[1].t - b[1].t);
+
+// Apply one move to the latest shared state.
+function act(fn) {
+  return net.transact(`games/${code}/state`, cur => {
+    if (!cur) return;
+    S = revive(cur); quiet = true;
+    try { fn(); } finally { quiet = false; }
+    if (S.log.length > 40) S.log.length = 40;
+    return JSON.parse(JSON.stringify(S));
+  }).catch(err => { console.error(err); notice = 'Could not reach the game server. Check your connection.'; render(); });
+}
+
+// ---------- Joining ----------
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+const newCode = () => Array.from({ length: 4 }, () => CODE_CHARS[rnd(CODE_CHARS.length)]).join('');
+function saveName() {
+  const el = document.getElementById('myname'); if (el) myName = el.value;
+  myName = myName.trim().slice(0, 20);
+  if (!myName) { notice = 'Enter your name first.'; render(); return false; }
+  remember('gx-name', myName); return true;
+}
+async function createGame() {
+  if (!saveName()) return;
+  for (let i = 0; i < 6; i++) {
+    const c = newCode();
+    const g = { createdAt: Date.now(), host: uid, settings: { perColor: 3, target: 5 },
+                lobby: { [uid]: { name: myName, organ: 'Eye', t: Date.now() } } };
+    const r = await net.transact('games/' + c, cur => (cur ? undefined : g));
+    if (r && r.committed) { enter(c); net.cleanup().catch(() => {}); return; }
+  }
+  notice = 'Could not create a game. Try again.'; render();
+}
+async function joinGame(raw) {
+  if (!saveName()) return;
+  const c = String(raw || '').toUpperCase().replace(/[^A-Z]/g, '');
+  if (c.length !== 4) { notice = 'Enter the 4-letter game code.'; return render(); }
+  let g;
+  try { g = await net.get('games/' + c); } catch (e) { console.error(e); notice = 'Could not reach the game server.'; return render(); }
+  if (!g) { notice = `No game with code ${c}. Check the code with the host.`; remember('gx-code', null); return render(); }
+  if (g.state) {
+    if ((g.state.players || []).some(p => p.uid === uid)) return enter(c); // rejoining after a refresh
+    notice = 'That game has already started.'; remember('gx-code', null); return render();
+  }
+  const lobby = g.lobby || {};
+  if (!lobby[uid]) {
+    if (Object.keys(lobby).length >= 4) { notice = 'That game is full (4 players).'; return render(); }
+    const taken = Object.values(lobby).map(p => p.organ);
+    const organ = Object.keys(ORGANS).find(o => !taken.includes(o)) || 'Eye';
+    await net.set(`games/${c}/lobby/${uid}`, { name: myName, organ, t: Date.now() });
+  }
+  enter(c);
+}
+function enter(c) {
+  code = c; remember('gx-code', c); view = 'lobby'; lastRolls = null; dismissed = false;
+  net.presence(c, uid);
+  if (unwatch) unwatch();
+  unwatch = net.watch(c, g => {
+    if (!g) { notice = 'That game has ended.'; return leaveLocal(); }
+    game = g; game.settings = game.settings || { perColor: 3, target: 5 };
+    if (g.state) {
+      S = revive(g.state); setup.target = S.target;
+      mySeat = S.players.findIndex(p => p.uid === uid);
+      view = 'game';
+      const rolled = lastRolls !== null && S.rolls > lastRolls; lastRolls = S.rolls;
+      render();
+      if (rolled && !reduceMotion) { const d = document.getElementById('dice'); if (d) d.classList.add('shake'); }
+    } else { S = null; view = 'lobby'; render(); }
+  });
+}
+function startOnline() {
+  const list = lobbyList().slice(0, 4);
+  net.transact(`games/${code}/state`, cur => {
+    if (cur) return;
+    setup.n = list.length; setup.perColor = game.settings.perColor; setup.target = game.settings.target;
+    setup.players = list.map(([, p]) => ({ name: p.name, organ: p.organ }));
+    quiet = true; try { startGame(); } finally { quiet = false; }
+    S.players.forEach((p, i) => { p.uid = list[i][0]; });
+    return JSON.parse(JSON.stringify(S));
+  });
+}
+function leave() {
+  if (code && game) {
+    const others = S ? S.players.map(p => p.uid).filter(id => id !== uid && game.presence && game.presence[id]) : [];
+    if (isHost() && (!S || S.phase === 'over' || !others.length)) net.set('games/' + code, null); // host closes the game
+    else {
+      if (!S) net.set(`games/${code}/lobby/${uid}`, null);
+      if (isHost() && others.length) net.set(`games/${code}/host`, others[0]); // hand hosting to someone still here
+      net.set(`games/${code}/presence/${uid}`, null);
+    }
+  }
+  leaveLocal();
+}
+function leaveLocal() {
+  if (unwatch) unwatch();
+  unwatch = null; code = null; game = null; S = null; mySeat = -1; lastRolls = null; dismissed = false; view = 'home';
+  remember('gx-code', null); render();
+}
+
+// ---------- Rendering ----------
+function rulesHTML() {
+  return `<details class="rules" ${rulesOpen ? 'open' : ''}><summary>How to play</summary><ol>
+    <li>Transcription-factor tokens are dealt at random onto the dice board (sums 2–12). The dots under each number show how many of the 36 two-dice combinations make that sum.</li>
+    <li>On your turn you draw an action card (hand limit ${HAND_MAX}) and roll two dice. <b>Every</b> player collects the tokens on the rolled sum, but only in the colors their organ collects.</li>
+    <li>Every organ card is different: its own genes, its own enhancer combinations, and its own collectable colors. An organ can only collect 3 colors from the board. Its first gene makes a 4th color. Transcription-factor genes produce on the condition printed beside them. The 5th color comes only from its Receptor, so every cell depends on signals from its neighbors.</li>
+    <li>On your turn, click an enhancer to bind a matching factor from your supply (or use <i>Bind all</i>). A gene is expressed when all three enhancers are bound <b>and</b> its chromatin is open.</li>
+    <li><b>HAT:</b> each organ's HAT fires on its own roll. When it fires, that player may open or close the chromatin on one of their genes, even on someone else's turn.</li>
+    <li><b>Ligand and Receptor:</b> an expressed Ligand signals on its own roll. You draw an action card, and every neighboring cell with its Receptor expressed collects one factor of its Receptor's color. Your neighbors are the players just before and after you in turn order. An expressed Ligand also lets you play action cards on neighboring cells.</li>
+    <li>You may play one action card per turn. Each card has 6 genes; the first cell to express ${S ? S.target : setup.target} of them wins.</li>
+  </ol></details>`;
+}
+const noticeHTML = () => notice ? `<p class="notice" role="status">${esc(notice)}</p>` : '';
+
+function renderHome() {
+  const pre = esc((params.get('code') || '').toUpperCase());
+  app.innerHTML = `
+  <header class="top"><div><h1>Gene Expression Dice Game</h1>
+    <p>Online play: every player joins from their own computer with a game code.</p></div>
+    <div class="actions"><a class="btn small" href="index.html">Play on one screen instead</a></div></header>
+  ${LOCAL ? '<p class="notice">Local test mode: games are shared only between tabs of this browser.</p>' : ''}
+  ${noticeHTML()}
+  ${rulesHTML()}
+  <div class="setup">
+    <section class="box"><label class="label" for="myname">Your name</label>
+      <input id="myname" class="text" maxlength="20" value="${esc(myName)}" placeholder="First name or nickname" autocomplete="off">
+      <p class="muted small">Use a first name or nickname only.</p></section>
+    <section class="box"><span class="label">Start a new game</span>
+      <p class="muted small">You'll get a 4-letter code to share with up to 3 other players.</p>
+      <button class="btn primary" data-act="create">Create game</button></section>
+    <section class="box"><label class="label" for="joincode">Join a game</label>
+      <input id="joincode" class="text code" maxlength="4" placeholder="CODE" autocomplete="off" value="${pre}">
+      <button class="btn" data-act="join">Join</button></section>
+  </div>`;
+}
+
+function renderLobby() {
+  const list = lobbyList(), host = isHost();
+  const link = location.origin + location.pathname + '?code=' + code + (LOCAL ? '&local' : '');
+  const opts = (vals, cur) => vals.map(v => `<option ${v === cur ? 'selected' : ''}>${v}</option>`).join('');
+  app.innerHTML = `
+  <header class="top"><div><h1>Gene Expression Dice Game</h1></div>
+    <div class="actions"><button class="btn small" data-act="leave">${host ? 'Cancel game' : 'Leave'}</button></div></header>
+  ${noticeHTML()}
+  <div class="setup">
+    <section class="box"><span class="label">Game code</span>
+      <div class="bigcode mono">${code}</div>
+      <p class="muted small">Players open this page and enter the code, or use this link:</p>
+      <span class="mono small linkline">${esc(link)}</span></section>
+    <section class="box"><span class="label">Players (${list.length}/4), in turn order</span>
+      ${list.map(([id, p], i) => `<div class="seat"><span class="mono muted">${i + 1}</span>
+        <span>${esc(p.name)}${id === game.host ? ' <span class="muted">(host)</span>' : ''}${id === uid ? ' <b>(you)</b>' : ''}</span>
+        ${id === uid ? `<select id="myorgan" data-myorgan aria-label="Your organ">${opts(Object.keys(ORGANS), p.organ)}</select>` : `<span>${p.organ}</span>`}</div>`).join('')}
+      <p class="muted small">Pick your organ. Your neighbors are the players just before and after you.</p></section>
+    <section class="box"><span class="label">Game options</span>
+      ${host ? `
+      <label class="field">Tokens of each color on the dice board
+        <select id="perColor" data-gopt="perColor">${opts([2, 3, 4, 5], game.settings.perColor)}</select></label>
+      <label class="field">Genes a cell must express to win
+        <select id="target" data-gopt="target">${opts([4, 5, 6], game.settings.target)}</select></label>
+      <button class="btn primary" data-act="startonline">Start the game</button>`
+      : `<p>${game.settings.perColor} tokens of each color. First to ${game.settings.target} genes wins.</p>
+         <p class="muted">Waiting for the host to start the game.</p>`}
+    </section>
+  </div>`;
+}
+
+function promptHTML() {
+  const pd = S.pending; if (!pd) return '';
+  if (pd.type === 'hat') {
+    const p = S.players[pd.p];
+    if (pd.p === mySeat) return `<div class="prompt" role="status"><p>Your HAT fires. Click a chromatin icon on your ${p.organ} card to open or close that gene.</p>
+      <div class="btns"><button class="btn small" data-act="skip">Leave chromatin as is</button></div></div>`;
+    return `<div class="prompt" role="status"><p>Waiting for ${esc(p.name)} to use their HAT.</p>
+      ${isHost() && !isOnline(pd.p) ? `<div class="btns"><button class="btn small" data-act="skip">Skip it (${esc(p.name)} is disconnected)</button></div>` : ''}</div>`;
+  }
+  const c = CARDS[pd.card];
+  if (!myTurn()) return `<div class="prompt" role="status"><p>${esc(cur().name)} is playing ${c.name}.</p></div>`;
+  if (pd.step === 'target') {
+    return `<div class="prompt" role="status"><p>Play ${c.name} on which cell?</p><div class="btns">
+      ${targets(S.turn).map(t => `<button class="btn small" data-act="target" data-t="${t}" ${validTarget(pd.card, t) ? '' : 'disabled'}>${t === mySeat ? 'Your cell' : esc(S.players[t].name)} (${S.players[t].organ})</button>`).join('')}
+      <button class="btn small" data-act="cancel">Cancel</button></div></div>`;
+  }
+  const t = S.players[pd.target];
+  const what = pd.card === 'acetyl' ? 'a closed chromatin icon' : pd.card === 'hdac' ? 'an open chromatin icon' : 'a bound enhancer';
+  return `<div class="prompt" role="status"><p>${c.name}: click ${what} on ${pd.target === mySeat ? 'your' : esc(t.name) + "'s"} ${t.organ} card.</p>
+    <div class="btns"><button class="btn small" data-act="cancel">Cancel</button></div></div>`;
+}
+
+function boardHTML() {
+  const sum = S.dice ? S.dice[0] + S.dice[1] : null;
+  let cells = '';
+  for (let s = 2; s <= 12; s++) {
+    cells += `<div class="cell ${s === sum ? 'hit' : ''} ${s >= 6 && s <= 8 ? 'hot' : ''}"><b>${s}</b>
+      <div class="pips" aria-label="${WAYS[s]} of 36 ways">${'<i></i>'.repeat(WAYS[s])}</div>
+      <div class="toks">${S.board[s].map(c => shape(c, 16)).join('')}</div></div>`;
+  }
+  return `<section class="box"><div class="dice-row" style="justify-content:space-between"><span class="label">Dice board</span>
+      ${S.rolls === 0 && S.phase === 'roll' && myTurn() ? '<button class="btn small" data-act="redeal">Re-deal tokens</button>' : ''}</div>
+    <div class="board">${cells}</div>
+    <p class="board-note">Everyone collects the tokens on the rolled sum, in the colors their organ collects.</p></section>`;
+}
+
+function geneHTML(p, pi, g) {
+  const gene = genesOf(p)[g], on = expressed(p, g), pd = S.pending;
+  const active = myTurn() && pi === S.turn && S.phase === 'act' && !pd;
+  const pickChrom = pd && ((pd.type === 'hat' && pd.p === pi && pi === mySeat) ||
+    (myTurn() && pd.type === 'card' && pd.step === 'gene' && pd.target === pi && ((pd.card === 'acetyl' && !p.open[g]) || (pd.card === 'hdac' && p.open[g]))));
+  const repress = myTurn() && pd && pd.type === 'card' && pd.card === 'repressor' && pd.step === 'gene' && pd.target === pi;
+  const slots = gene.enh.map((c, s) => {
+    const b = p.bound[g][s], can = active && !b && p.pool[c] > 0, pick = repress && b;
+    return `<button class="slot ${b ? 'bound' : ''} ${can ? 'can' : ''} ${pick ? 'pick' : ''}" style="--c:${TF[c].hex}" data-act="slot" data-p="${pi}" data-g="${g}" data-s="${s}"
+      ${can || pick ? '' : 'disabled'} aria-label="${TF[c].name} enhancer, ${b ? 'bound' : 'empty'}">${b ? shape(c, 16) : ''}</button>`;
+  }).join('');
+  const icon = gene.kind === 'tf' || gene.kind === 'receptor' ? shape(gene.color, 20) : `<span class="badge">${gene.kind === 'hat' ? 'HAT' : 'LIG'}</span>`;
+  const boundN = p.bound[g].filter(Boolean).length;
+  const pill = on ? `<span class="pill on">Expressed</span>` : !p.open[g] ? `<span class="pill closed">Chromatin closed</span>` : `<span class="pill wait">${boundN}/3 factors bound</span>`;
+  return `<div class="gene ${on ? 'on' : ''}">
+    <button class="chrom ${pickChrom ? 'pick' : ''}" data-act="chrom" data-p="${pi}" data-g="${g}" ${pickChrom ? '' : 'disabled'}
+      aria-label="Gene ${g + 1} chromatin ${p.open[g] ? 'open' : 'closed'}">${chromSVG(p.open[g])}${p.open[g] ? 'Open' : 'Closed'}</button>
+    <div class="track">${slots}</div>
+    ${HELIX}
+    <div class="product"><span class="ptitle">${icon}${gene.title}</span><span class="rule">${gene.rule}</span>${pill}</div>
+  </div>`;
+}
+
+function organHTML(p, pi) {
+  const o = ORGANS[p.organ], mine = pi === mySeat;
+  const canPlay = myTurn() && S.phase === 'act' && !S.pending && !S.played;
+  const hand = mine
+    ? p.hand.map((k, i) => `<button class="acard" data-act="card" data-i="${i}" ${canPlay ? '' : 'disabled'}><b>${CARDS[k].name}</b><span>${CARDS[k].text}</span></button>`).join('')
+      || `<span class="muted">No action cards.</span>`
+    : `<span class="acard back">${p.hand.length} action card${p.hand.length === 1 ? '' : 's'}</span>`;
+  return `<article class="organ ${pi === S.turn ? 'active' : ''} ${mine ? 'mine' : ''}" aria-label="${esc(p.name)}'s ${p.organ} card">
+    <div class="organ-head"><h2>${p.organ}</h2><span class="muted">${o.cell}</span>
+      <span class="who"><i class="dot ${isOnline(pi) ? 'on' : ''}"></i>${esc(p.name)}${mine ? ' (you)' : ''}</span>
+      <span class="score">${countOn(p)}/${S.target} genes on</span></div>
+    <div class="strip">
+      <div class="collects"><span class="label">Collects</span>${o.collects.map(c => shape(c, 20)).join('')}</div>
+      <div class="pool" aria-label="Factors in supply"><span class="label" style="align-self:center">Supply</span>
+        ${Object.keys(TF).map(c => `<span class="chip ${p.pool[c] ? '' : 'zero'}">${shape(c, 16)}${p.pool[c]}</span>`).join('')}</div>
+    </div>
+    <div class="genes">
+      <div class="gene-head label"><span>Chromatin</span><span>Enhancers</span><span></span><span>Gene product</span></div>
+      ${genesOf(p).map((_, g) => geneHTML(p, pi, g)).join('')}
+    </div>
+    <div class="strip"><span class="label">Action cards${pi === S.turn && S.played ? ' (played this turn)' : ''}</span></div>
+    <div class="hand">${hand}</div>
+  </article>`;
+}
+
+function renderGameOnline() {
+  const p = cur(), canAct = myTurn() && S.phase === 'act' && !S.pending;
+  const hint = S.phase === 'over' ? 'Game over.'
+    : !myTurn() ? `Waiting for ${esc(p.name)}${isOnline(S.turn) ? '' : ' (disconnected)'}.`
+    : S.phase === 'roll' ? 'Roll the dice.'
+    : S.pending ? 'Resolve the prompt below first.' : 'Bind factors to enhancers, play up to one action card, then end your turn.';
+  const sum = S.dice ? S.dice[0] + S.dice[1] : '';
+  // your own card first, then the others in turn order
+  const order = S.players.map((_, i) => (Math.max(mySeat, 0) + i) % S.players.length);
+  app.innerHTML = `
+  <header class="top"><div><h1>Gene Expression Dice Game</h1></div>
+    <div class="actions"><span class="codechip mono">Game ${code}</span>
+      ${S.players.map((q, i) => `<span class="pchip ${i === S.turn ? 'now' : ''}"><i class="dot ${isOnline(i) ? 'on' : ''}"></i>${esc(q.name)}</span>`).join('')}
+      <button class="btn small" data-act="leave">Leave</button></div></header>
+  ${noticeHTML()}
+  ${rulesHTML()}
+  <div class="game">
+    <aside class="panel">
+      <section class="box turn ${myTurn() ? 'yours' : ''}"><span class="label">Turn ${S.rolls + (S.phase === 'roll' ? 1 : 0)}</span>
+        <h2>${myTurn() ? 'Your turn' : esc(p.name)} <span>· ${p.organ}</span></h2><p class="hint">${hint}</p>
+        <div class="dice-row"><div class="dice" id="dice">${dieHTML(S.dice ? S.dice[0] : 0)}${dieHTML(S.dice ? S.dice[1] : 0)}</div>
+          <span class="sum" aria-live="polite">${sum !== '' ? '= ' + sum : ''}</span></div>
+        <div class="btns">
+          <button class="btn primary" data-act="roll" ${myTurn() && S.phase === 'roll' ? '' : 'disabled'}>Roll dice</button>
+          <button class="btn" data-act="auto" ${canAct ? '' : 'disabled'}>Bind all</button>
+          <button class="btn" data-act="end" ${canAct ? '' : 'disabled'}>End turn</button>
+        </div>
+        ${isHost() && !myTurn() && S.phase !== 'over' && !isOnline(S.turn) ? `<button class="btn small" data-act="skipturn">Skip ${esc(p.name)}'s turn</button>` : ''}
+      </section>
+      ${promptHTML()}
+      ${boardHTML()}
+      <section class="box"><span class="label">Log</span><div class="log">${S.log.map(l => `<div>${l}</div>`).join('')}</div></section>
+    </aside>
+    <section class="cards">${order.map(i => organHTML(S.players[i], i)).join('')}</section>
+  </div>
+  ${S.winner !== null && !dismissed ? winHTML() : ''}`;
+}
+function winHTML() {
+  const w = S.players[S.winner];
+  return `<div class="overlay"><div class="box" role="dialog" aria-label="Game over">
+    <h2>${w.uid === uid ? 'You win' : esc(w.name) + ' wins'}</h2>
+    <p>The ${w.organ} cell expressed ${countOn(w)} genes after ${S.rolls} rolls.</p>
+    <p class="muted">Look back at the cards. Every cell in the body carries the same DNA, but each organ switched on a different set of genes, and each gene needed its own combination of transcription factors. A factor one cell was desperate for could be useless to the cell next to it.</p>
+    <div class="btns"><button class="btn primary" data-act="leave">Back to start</button><button class="btn" data-act="dismiss">Look at the board</button></div>
+  </div></div>`;
+}
+function render() {
+  if (quiet) return; // rules code calls render() mid-move; draw only from the shared state
+  if (view === 'lobby' && game) return renderLobby();
+  if (view === 'game' && S) return renderGameOnline();
+  renderHome();
+}
+
+// ---------- Events ----------
+app.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
+  const d = b.dataset, a = d.act;
+  notice = '';
+  if (a === 'create') return createGame();
+  if (a === 'join') return joinGame(document.getElementById('joincode').value);
+  if (a === 'leave') return leave();
+  if (a === 'startonline') return isHost() && startOnline();
+  if (a === 'dismiss') { dismissed = true; return render(); }
+  if (!S) return;
+  if (a === 'skip') return act(() => {
+    const pd = S.pending; if (!pd || pd.type !== 'hat') return;
+    if (pd.p !== mySeat && !(isHost() && !isOnline(pd.p))) return;
+    log(`${who(S.players[pd.p])} leaves their chromatin as is.`); nextPending();
+  });
+  if (a === 'chrom') return act(() => {
+    const pd = S.pending; if (!pd) return;
+    if (pd.type === 'hat' ? pd.p !== mySeat : !myTurn()) return;
+    chromClick(+d.p, +d.g);
+  });
+  if (a === 'skipturn') return isHost() && act(() => {
+    if (S.phase === 'over' || isOnline(S.turn)) return;
+    log(`${who(cur())}'s turn was skipped (disconnected).`);
+    S.pending = null; S.queue = []; S.phase = 'act'; endTurn();
+  });
+  if (!myTurn()) return;
+  if (a === 'roll') return act(() => { if (S.phase === 'roll' && mySeat === S.turn) { S.dice = [1 + rnd(6), 1 + rnd(6)]; resolve(); } });
+  if (a === 'redeal') return act(() => { if (S.rolls === 0 && S.phase === 'roll') { S.board = dealBoard(S.colors, game.settings.perColor); log('Re-dealt the dice board.'); } });
+  if (a === 'auto') return act(() => { if (S.phase === 'act' && !S.pending) autoBind(); });
+  if (a === 'end') return act(endTurn);
+  if (a === 'slot') return act(() => slotClick(+d.p, +d.g, +d.s));
+  if (a === 'card') return act(() => playCard(+d.i));
+  if (a === 'target') return act(() => { if (S.pending && S.pending.type === 'card' && S.pending.step === 'target') chooseTarget(+d.t); });
+  if (a === 'cancel') return act(() => { if (S.pending && S.pending.type === 'card') S.pending = null; });
+});
+app.addEventListener('input', e => { if (e.target.id === 'myname') myName = e.target.value; });
+app.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'joincode') joinGame(e.target.value); });
+app.addEventListener('change', e => {
+  const d = e.target.dataset;
+  if (d.myorgan !== undefined && code) net.set(`games/${code}/lobby/${uid}/organ`, e.target.value);
+  if (d.gopt && isHost()) net.set(`games/${code}/settings/${d.gopt}`, +e.target.value);
+});
+app.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('rules')) rulesOpen = e.target.open; }, true);
+
+// ---------- Start ----------
+async function boot() {
+  const cfg = window.FIREBASE_CONFIG;
+  if (!LOCAL && !(cfg && cfg.apiKey && !/PASTE/.test(cfg.apiKey) && window.firebase)) {
+    app.innerHTML = `<header class="top"><div><h1>Gene Expression Dice Game</h1></div></header>
+      <p class="notice">Online play isn't set up yet. Paste your Firebase settings into <span class="mono">firebase-config.js</span> next to this page (see ONLINE-SETUP.md).</p>
+      <p><a class="btn" href="index.html">Play on one screen instead</a></p>`;
+    return;
+  }
+  net = LOCAL ? LocalNet : FirebaseNet;
+  try { uid = await net.init(); }
+  catch (e) {
+    console.error(e);
+    app.innerHTML = `<header class="top"><div><h1>Gene Expression Dice Game</h1></div></header>
+      <p class="notice">Couldn't connect to the game server: ${esc(e.message || e)}. Check that Anonymous sign-in is turned on in Firebase.</p>`;
+    return;
+  }
+  const c = (params.get('code') || '').toUpperCase() || recall('gx-code');
+  if (c && myName) joinGame(c); else render();
+}
+boot();
+
+</script>
+</body>
+</html>
