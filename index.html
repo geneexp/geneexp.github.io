@@ -937,7 +937,7 @@ async function boot() {
   if (!LOCAL && !(cfg && cfg.apiKey && !/PASTE/.test(cfg.apiKey) && window.firebase)) {
     app.innerHTML = `<header class="top"><div><h1>Gene Expression Dice Game</h1></div></header>
       <p class="notice">Online play isn't set up yet. Paste your Firebase settings into <span class="mono">firebase-config.js</span> next to this page (see ONLINE-SETUP.md).</p>
-      <p><a class="btn" href="index.html">Play on one screen instead</a></p>`;
+      <p><a class="btn" href="local.html">Play on one screen instead</a></p>`;
     return;
   }
   net = LOCAL ? LocalNet : FirebaseNet;
